@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description:  Infrastructure as Code Workshops basic security groups
+
+# The IAC workshops assume a VPC with these security groups.
+
+Parameters:
+  myVPCid:
+    Description: The VPC id to which these security groups apply
+    Type: AWS::EC2::VPC::Id
+  myProject:
+    Description: A name for this project.
+    Type: String
+    Default: "IAC-Workshops"
+
+Resources:
+
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable access to the bastion host
+      VpcId: !Ref myVPCid
+      SecurityGroupIngress:
+      - CidrIp: 202.27.76.0/24
+        IpProtocol: tcp
+        ToPort: 22
+        FromPort: 22
+      - CidrIp: 202.175.143.143/32
+        IpProtocol: tcp
+        ToPort: 22
+        FromPort: 22
+      - CidrIp: 202.27.76.0/24
+        IpProtocol: tcp
+        ToPort: 3389
+        FromPort: 3389
+      - CidrIp: 202.175.143.143/32
+        IpProtocol: tcp
+        ToPort: 3389
+        FromPort: 3389
+      Tags:
+      - Key: Project
+        Value: !Ref myProject
+
+Outputs:
+
+  BastionSecurityGroup:
+    Description: Security group ID for bastion host
+    Value: !GetAtt BastionSecurityGroup.GroupId
+    Export:
+      Name: !Sub "${myProject}-secgrp-BastionGroupID"

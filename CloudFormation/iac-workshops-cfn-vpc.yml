@@ -1,0 +1,361 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description:  Infrastructure as Code Workshops base VPC networking infrastructure stack
+
+# This VPC stack should be created first before any other
+# CloudFormation stacks, such as a bastion stack, database
+# stack or application stack. 
+# The IAC workshops assume a VPC with these characteristics.
+
+Parameters:
+  myVPC:
+    Description: VPC stack name
+    Type: String
+    Default: "IAC-Workshops-VPC"
+  myVPCNet:
+    Description: The first two fields of a private /16 network for the VPC to be used e.g 172.16, or 192.168, or 10.0.
+    Type: String
+    Default: "172.31"
+  myProject:
+    Description: A name for this project.
+    Type: String
+    Default: "IAC-Workshops"
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock:
+        Fn::Sub: "${myVPCNet}.0.0/16"
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+      - Key: Name
+        Value: !Ref myVPC
+      - Key: Project
+        Value: !Ref myProject
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock:
+        Fn::Sub: "${myVPCNet}.1.0/24"
+      AvailabilityZone: !Select [ 0, "Fn::GetAZs": !Ref "AWS::Region"]
+      Tags:
+      - Key: Name
+        Value: !Sub "${myVPC}-PublicSubnet1"
+      - Key: Project
+        Value: !Ref myProject
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock:
+        Fn::Sub: "${myVPCNet}.2.0/24"
+      AvailabilityZone: !Select [ 1, "Fn::GetAZs": !Ref "AWS::Region"]
+      Tags:
+      - Key: Name
+        Value: !Sub "${myVPC}-PublicSubnet2"
+      - Key: Project
+        Value: !Ref myProject
+
+  PublicSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock:
+        Fn::Sub: "${myVPCNet}.3.0/24"
+      AvailabilityZone: !Select [ 2, "Fn::GetAZs": !Ref "AWS::Region"]
+      Tags:
+      - Key: Name
+        Value: !Sub "${myVPC}-PublicSubnet3"
+      - Key: Project
+        Value: !Ref myProject
+
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock:
+        Fn::Sub: "${myVPCNet}.11.0/24"
+      AvailabilityZone: !Select [ 0, "Fn::GetAZs": !Ref "AWS::Region"]
+      Tags:
+      - Key: Name
+        Value: !Sub "${myVPC}-PrivateSubnet1"
+      - Key: Project
+        Value: !Ref myProject
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock:
+        Fn::Sub: "${myVPCNet}.12.0/24"
+      AvailabilityZone: !Select [ 1, "Fn::GetAZs": !Ref "AWS::Region"]
+      Tags:
+      - Key: Name
+        Value: !Sub "${myVPC}-PrivateSubnet2"
+      - Key: Project
+        Value: !Ref myProject
+
+  PrivateSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock:
+        Fn::Sub: "${myVPCNet}.13.0/24"
+      AvailabilityZone: !Select [ 2, "Fn::GetAZs": !Ref "AWS::Region"]
+      Tags:
+      - Key: Name
+        Value: !Sub "${myVPC}-PrivateSubnet3"
+      - Key: Project
+        Value: !Ref myProject
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Project
+        Value: !Ref myProject
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${myVPC}-public-igw"
+      - Key: Project
+        Value: !Ref myProject
+
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetRouteTableAssociation3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet3
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetNetworkAclAssociation1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      NetworkAclId: !GetAtt VPC.DefaultNetworkAcl
+
+  PublicSubnetNetworkAclAssociation2:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      NetworkAclId: !GetAtt VPC.DefaultNetworkAcl
+
+  PublicSubnetNetworkAclAssociation2:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      NetworkAclId: !GetAtt VPC.DefaultNetworkAcl
+
+  # NAT-related resources
+  #
+  # NAT is used to allow instances in private subnets to communicate with AWS
+  # services, and pull down code and updates.
+
+  NatGatewayA:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIPA.AllocationId
+      SubnetId: !Ref PublicSubnet1
+
+  NatEIPA:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${myVPC}-private-nat-A"
+      - Key: Project
+        Value: !Ref myProject
+
+  NatRouteA:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref NatRouteTableA
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayA
+
+  NatGatewayB:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIPB.AllocationId
+      SubnetId: !Ref PublicSubnet2
+
+  NatEIPB:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${myVPC}-private-nat-B"
+      - Key: Project
+        Value: !Ref myProject
+
+  NatRouteB:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref NatRouteTableB
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayB
+
+  NatGatewayC:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIPC.AllocationId
+      SubnetId: !Ref PublicSubnet3
+
+  NatEIPC:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatRouteTableC:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${myVPC}-private-nat-C"
+      - Key: Project
+        Value: !Ref myProject
+
+  NatRouteC:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref NatRouteTableC
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayC
+
+  PrivateSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref NatRouteTableA
+
+  PrivateSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref NatRouteTableB
+
+  PrivateSubnetRouteTableAssociation3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet3
+      RouteTableId: !Ref NatRouteTableC
+
+Outputs:
+
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${myVPC}-VpcID"
+
+  PublicSubnet1:
+    Description: Public subnet 1 ID
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub "${myVPC}-PublicSubnet1ID"
+
+  PublicSubnet2:
+    Description: Public subnet 2 ID
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub "${myVPC}-PublicSubnet2ID"
+
+  PublicSubnet3:
+    Description: Public subnet 3 ID
+    Value: !Ref PublicSubnet3
+    Export:
+      Name: !Sub "${myVPC}-PublicSubnet3ID"
+
+  PrivateSubnet1:
+    Description: Private subnet 1 ID
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub "${myVPC}-PrivateSubnet1ID"
+
+  PrivateSubnet2:
+    Description: Private subnet 2 ID
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub "${myVPC}-PrivateSubnet2ID"
+
+  PrivateSubnet3:
+    Description: Private subnet 3 ID
+    Value: !Ref PrivateSubnet3
+    Export:
+      Name: !Sub "${myVPC}-PrivateSubnet3ID"
+
+  NatEIPA:
+    Description: EIP of NAT GatewayA
+    Value: !Ref NatEIPA
+    Export:
+      Name: !Sub "${myVPC}-NatEIPA"
+
+  NatEIPB:
+    Description: EIP of NAT GatewayB
+    Value: !Ref NatEIPB
+    Export:
+      Name: !Sub "${myVPC}-NatEIPB"
+
+  NatEIPC:
+    Description: EIP of NAT GatewayC
+    Value: !Ref NatEIPC
+    Export:
+      Name: !Sub "${myVPC}-NatEIPC"

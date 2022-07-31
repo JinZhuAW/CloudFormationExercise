@@ -1,0 +1,225 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation Template to create Aurora Mysql Cluster DB Instance
+Parameters:
+  VPCId:
+    Description: The id of the VPC in which to launch this Aurora Mysql Cluster DB Instance
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-035c603a2de8ea34d
+  PrivateSubnetAZ1:
+    Description: The subnet in which to launch this Aurora Mysql Cluster DB Instance
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnetAZ2:
+    Description: The subnet in which to launch this Aurora Mysql Cluster DB Instance
+    Type: AWS::EC2::Subnet::Id
+  SecurityGroupId:
+    Description: the primary security group to attach to the Aurora Mysql Cluster DB Instance
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-0ee57b895036aef4b
+  DBName:
+    Description: Database Name
+    Type: String
+    MinLength: '1'
+    MaxLength: '64'
+    AllowedPattern: '^[a-zA-Z]+[0-9a-zA-Z_]*$'
+    ConstraintDescription: >-
+      Must start with a letter. Only numbers, letters, and _ accepted. max
+      length 64 characters
+  DBPort:
+    Description: TCP/IP Port for the Database Instance
+    Type: Number
+    Default: 3306
+    ConstraintDescription: 'Must be in the range [1150-65535]'
+    MinValue: 1150
+    MaxValue: 65535
+  DBUsername:
+    Description: Database master username
+    Type: String
+    MinLength: '1'
+    MaxLength: '16'
+    AllowedPattern: '^[a-zA-Z]+[0-9a-zA-Z_]*$'
+    ConstraintDescription: >-
+      Must start with a letter. Only numbers, letters, and _ accepted. max
+      length 16 characters
+  DBPassword:
+    Description: Database master password
+    Type: String
+    MinLength: '8'
+    MaxLength: '16'
+    AllowedPattern: '^[a-zA-Z]+[0-9a-zA-Z_]*$'
+    ConstraintDescription: >-
+      Must start with a letter. Only numbers, letters, and _ accepted. max
+      length 16 characters
+    NoEcho: true
+  DBInstanceClass:
+    Default: db.t2.small
+    Description: Database Instance Class
+    Type: String
+    AllowedValues:
+      - db.t2.small
+
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: DB Parameters
+        Parameters:
+          - DBName
+          - DBPort
+          - DBUsername
+          - DBPassword
+          - DBInstanceClass
+      - Label:
+          default: Networking
+        Parameters:
+          - ParentVPCStack
+          - ParentSSHBastionStack
+  'AWS::CloudFormation::Designer':
+    bdcb21d4-aad1-4dcd-9e13-551fa76b15f8:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 60
+        'y': 420
+      z: 1
+      embeds: []
+    6121f128-bbd3-4cf2-85e1-8143a0944fa8:
+      source:
+        id: bdcb21d4-aad1-4dcd-9e13-551fa76b15f8
+      target:
+        id: bdcb21d4-aad1-4dcd-9e13-551fa76b15f8
+    c25d6b57-b414-483a-9092-a636736263fb:
+      size:
+        width: 150
+        height: 150
+      position:
+        x: 60
+        'y': 90
+      z: 1
+      embeds: []
+    7f889f59-a2fa-4785-bc96-a713bce6c56b:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 180
+        'y': 450
+      z: 1
+      embeds: []
+    cad48260-7ef2-4540-b717-3f7f64add4fc:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 300
+        'y': 570
+      z: 1
+      embeds: []
+    bfaadf02-b78a-4582-a230-d05d94751fc0:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 630
+        'y': 210
+      z: 1
+      embeds: []
+      dependson:
+        - cad48260-7ef2-4540-b717-3f7f64add4fc
+Resources:
+  DBSubnetGroup:
+    Type: 'AWS::RDS::DBSubnetGroup'
+    Properties:
+      DBSubnetGroupDescription: !Ref 'AWS::StackName'
+      SubnetIds: 
+        - !Ref PrivateSubnetAZ1
+        - !Ref PrivateSubnetAZ2
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: c25d6b57-b414-483a-9092-a636736263fb
+  ClusterSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Ref 'AWS::StackName'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref DBPort
+          ToPort: !Ref DBPort
+          SourceSecurityGroupId: !Ref SecurityGroupId
+          Description: Access to Bastion Host Security Group
+      VpcId: !Ref VPCId
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: bdcb21d4-aad1-4dcd-9e13-551fa76b15f8
+  ClusterSecurityGroupIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !GetAtt ClusterSecurityGroup.GroupId
+      IpProtocol: -1
+      SourceSecurityGroupId: !Ref ClusterSecurityGroup
+      Description: Self Reference
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 6121f128-bbd3-4cf2-85e1-8143a0944fa8
+  AuroraDBCluster:
+    Type: 'AWS::RDS::DBCluster'
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      Engine: aurora-mysql
+      DatabaseName: !Ref DBName
+      Port: !Ref DBPort
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds: 
+        - !Ref ClusterSecurityGroup
+
+
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 7f889f59-a2fa-4785-bc96-a713bce6c56b
+  AuroraDBFirstInstance:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      DBInstanceClass:
+        Ref: DBInstanceClass
+      DBClusterIdentifier: !Ref AuroraDBCluster
+      Engine: aurora-mysql
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      PubliclyAccessible: false
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: cad48260-7ef2-4540-b717-3f7f64add4fc
+  AuroraDBSecondInstance:
+    Type: 'AWS::RDS::DBInstance'
+    DependsOn:
+      - AuroraDBFirstInstance
+    Properties:
+      CopyTagsToSnapshot: true
+      DBInstanceClass:
+        Ref: DBInstanceClass
+      DBClusterIdentifier: !Ref AuroraDBCluster
+      Engine: aurora-mysql
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      PubliclyAccessible: false
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: bfaadf02-b78a-4582-a230-d05d94751fc0
+Outputs:
+  ClusterEndpoint:
+    Description: Aurora Cluster/Writer Endpoint
+    Value: !GetAtt AuroraDBCluster.Endpoint.Address
+  ReaderEndpoint:
+    Description: Aurora Reader Endpoint
+    Value: !GetAtt AuroraDBCluster.ReadEndpoint.Address
+  Port:
+    Description: Aurora Endpoint Port
+    Value: !GetAtt AuroraDBCluster.Endpoint.Port
+  DBUsername:
+    Description: Database master username
+    Value: !Ref DBUsername
+  DBName:
+    Description: Database Name
+    Value: !Ref DBName
+  

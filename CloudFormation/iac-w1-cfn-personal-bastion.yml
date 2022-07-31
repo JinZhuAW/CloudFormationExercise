@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description:  Infrastructure as Code Workshops - Bastion host stack - creates an SSH accessible bastion node from a pre-built AMI
+
+# Bastion stack creation prerequisite:  first create an EC2 key pair and a VPC stack.
+# For details about how to connect to a Linux instance in a private subnet via the
+# bastion, see the following AWS blog post:
+# https://aws.amazon.com/blogs/security/securely-connect-to-linux-instances-running-in-a-private-amazon-vpc/
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: User details
+        Parameters:
+          - myUserName
+          - mySSHPublicKey
+      - Label:
+          default: Bastion instance details
+        Parameters:
+          - BastionInstanceType
+#          - EC2KeyPairName
+          - VPCId
+          - SubnetId
+          - SecurityGroupId
+          - myProject
+
+Parameters:
+  myUserName:
+    Description: An identifier for yourself; recommended to be your Datacom login e.g. paulbi, dustinb 
+    Type: String
+  mySSHPublicKey:
+    Description: A public rsa key corresponding to your ssh login key (e.g. putty key)
+    Type: String
+    Default: "AAAAB3NzaC1yc2EAAAABJQAAAQEAnVpdULzgoRscrSHQ+qiI7aPZl3ZKMopHyON3dRty76QwxpsZWR8dAW6+wA/ZNQRH0q7blxOUizwEssw8+/JdkKQMdnf4q6j8GGLveUue9LhqUr+CottzHBD+L4lVQ1rI2WeH5OH9KCa9BJIrtNLAcQNWEvMQaeFWLtv6VC3Dwxxb1rttvHFEEXHlAZwgUlmnNHv5xFFO4myCSy+rLNpqlJNRnbj25trp2ORMLIoYb58zLg9iaMwtsMCZGttZ8jOpTC5bfCvWYA2dEX/4D2xqhVqxQxwk3PG90fl12+x9PKwvYnQxBOSpLfSXyRsstd61IPbb9mkvTuvSe/mb3j+W3Q=="
+  BastionInstanceType:
+    Description: The EC2 instance type of the bastion host
+    Type: String
+    AllowedValues:
+      - t2.nano
+      - t3.nano
+    Default: t3.nano
+#  EC2KeyPairName: 
+#    Description: A key pair that can be used for the instance special id (e.g. centos)
+#    Type: AWS::EC2::KeyPair::KeyName
+  VPCId:
+    Description: The id of the VPC in which to launch this instance
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-035c603a2de8ea34d
+  SubnetId:
+    Description: The subnet in which to launch this instance
+    Type: AWS::EC2::Subnet::Id
+  SecurityGroupId:
+    Description: the primary security group to attach to the bastion
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-0ee57b895036aef4b
+  myProject:
+    Description: A name for this project.
+    Type: String
+    Default: "IAC-Workshops"
+
+Mappings:
+
+  AMIMap:  # A security hardened CentOS 7 AMI
+    ap-southeast-2:
+      AMI: ami-0c8a803fe285ee50f
+
+Resources:
+
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref BastionInstanceType
+#      KeyName: !Ref EC2KeyPairName
+      ImageId: !FindInMap [AMIMap, !Ref "AWS::Region", AMI]
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds: [!Ref SecurityGroupId ]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -x
+          exec &> >(tee /var/log/user-data.log)
+          echo "Configuring user ${myUserName}"
+          # set environment variables
+          #export REGION=${AWS::Region}
+          #export INSTANCEID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+          #export AZ=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+          #export USER=${myUserName}
+          #export KEY=${mySSHPublicKey}
+                    
+          id -g ${myUserName} || groupadd -g 1001 ${myUserName}
+          id -u ${myUserName} || useradd -c "Private User" -u 1001 -g 1001 -G wheel -m -s /bin/bash ${myUserName}
+          test -d /home/${myUserName}/.ssh || mkdir /home/${myUserName}/.ssh
+          chmod 700 /home/${myUserName}/.ssh
+          chown ${myUserName}:${myUserName} /home/${myUserName}/.ssh
+
+          echo "ssh-rsa ${mySSHPublicKey}" > /home/${myUserName}/.ssh/authorized_keys
+          chmod 600 /home/${myUserName}/.ssh/authorized_keys
+          chown ${myUserName}:${myUserName} /home/${myUserName}/.ssh/authorized_keys
+
+          chage -M 99999 ${myUserName}
+
+          sed -i 's/\# %wheel.*ALL=(ALL).*NOPASSWD: ALL/%wheel        ALL=(ALL)       NOPASSWD: ALL/' /etc/sudoers
+      Tags:
+        -
+          Key: Name
+          Value: !Sub "${myUserName}-bastion"
+        -
+          Key: Project
+          Value: !Ref myProject
+
+  BastionEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref BastionHost
+      Domain: vpc
+
+Outputs:
+
+  BastionIP:
+    Description: EIP for bastion host
+    Value: !Ref BastionEIP
+    Export:
+      Name: !Sub "${myProject}-${myUserName}-BastionEIP"
